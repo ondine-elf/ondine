@@ -1,0 +1,15 @@
+- Of the immediates, only those that are 8-bit can be used with
+  the "inb" and "outb" instructions for port numbers. (CHECK)
+
+- The "=" sign in inline assembly indicates that the assembly code
+  does not care about the initial valueof the variable (which allows for
+  some optimization)
+
+- I8024 PS/2 Controller:
+  - Port 0x60: (Read/Write) Data Port
+  - Port 0x64: (Read) Status Register
+  - Port 0x64: (Write) Command Register
+
+---------------------------------------------------------------------
+
+- What is meant by clobbered registers?
