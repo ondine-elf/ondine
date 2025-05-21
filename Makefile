@@ -1,72 +1,56 @@
-BOOT_DIR   := boot
-LOADER_DIR := loader
+BOOT_DIR := boot
 KERNEL_DIR := kernel
-BUILD_DIR  := build
+BUILD_DIR := build
 
 AS := nasm
-ASFLAGS := -f elf32
+
+BOOT_ASFLAGS := -f bin -I$(BOOT_DIR)
+KERNEL_ASFLAGS := -f elf32 -I$(KERNEL_DIR)/include
 
 CC := gcc
 CFLAGS := -ffreestanding
 CFLAGS += -nostdlib
 CFLAGS += -fno-pic
 CFLAGS += -fno-pie
+CFLAGS += -I$(KERNEL_DIR)/include
+CFLAGS += -m32
 
 LD := ld
-LDFLAGS := -m elf_i386
+LDFLAGS := -m elf_i386 -T $(KERNEL_DIR)/linker.ld
 
-BOOT_FLAGS := -f bin -I$(BOOT_DIR)
+KERNEL_SRCS := $(shell find $(KERNEL_DIR) -name '*.asm') $(shell find $(KERNEL_DIR) -name '*.c')
+
+OBJ := $(patsubst $(KERNEL_DIR)/%, build/%, $(KERNEL_SRCS))
+OBJ := $(OBJ:.asm=.o)
+OBJ := $(OBJ:.c=.o)
 
 BOOT := $(BUILD_DIR)/boot.bin
-LOADER := $(BUILD_DIR)/loader.bin
 KERNEL := $(BUILD_DIR)/kernel.bin
 IMAGE := $(BUILD_DIR)/os.bin
 
-LOADER_SRC := $(wildcard $(LOADER_DIR)/src/*.asm $(LOADER_DIR)/src/*.c)
-KERNEL_SRC := $(wildcard $(KERNEL_DIR)/src/*.asm $(KERNEL_DIR)/src/*.c)
+dirs:
+	@mkdir -p $(sort $(dir $(OBJ)))
 
-LOADER_OBJ := $(patsubst $(LOADER_DIR)/src/%, build/loader/%, $(LOADER_SRC))
-LOADER_OBJ := $(LOADER_OBJ:.c=.o)
-LOADER_OBJ := $(LOADER_OBJ:.asm=.o)
+$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.asm | dirs
+	$(AS) $(KERNEL_ASFLAGS) $< -o $@
 
-KERNEL_OBJ := $(patsubst $(KERNEL_DIR)/src/%, build/kernel/%, $(KERNEL_SRC))
-KERNEL_OBJ := $(KERNEL_OBJ:.c=.o)
-KERNEL_OBJ := $(KERNEL_OBJ:.asm=.o)
+$(BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/$(LOADER_DIR)/%.o: $(LOADER_DIR)/src/%.asm
-	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) -I$(LOADER_DIR)/include $< -o $@
+$(BOOT): $(BOOT_DIR)/boot.asm | dirs
+	$(AS) $(BOOT_ASFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(LOADER_DIR)/%.o: $(LOADER_DIR)/src/%.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(LOADER_DIR)/include -m16 -c $< -o $@
+$(KERNEL): $(OBJ) | dirs
+	$(LD) $(LDFLAGS) $^ -o $@
 
-$(BUILD_DIR)/$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/src/%.asm
-	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) -I$(KERNEL_DIR)/include $< -o $@
-
-$(BUILD_DIR)/$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/src/%.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS -I$(KERNEL_DIR)/include -m32 -c $< -o $@)
-
-$(BOOT): $(BOOT_DIR)/boot.asm
-	@mkdir -p $(dir $@)
-	$(AS) $(BOOT_FLAGS) $< -o $@
-
-$(LOADER): $(LOADER_OBJ)
-	$(LD) $(LDFLAGS) -T $(LOADER_DIR)/linker.ld $^ -o $@
-
-$(KERNEL): $(KERNEL_OBJ)
-	$(LD) $(LDFLAGS) -T $(KERNEL_DIR)/linker.ld $^ -o $@
-
-$(IMAGE): $(BOOT) $(LOADER)
-	truncate -s 16K $(LOADER)
-	cat $(BOOT) $(LOADER) > $@
+$(IMAGE): $(BOOT) $(KERNEL)
+	truncate -s 16K $(KERNEL)
+	cat $(BOOT) $(KERNEL) > $(IMAGE)
 
 os: $(IMAGE)
 
-run: $(IMAGE)
+run:
 	qemu-system-i386 -drive file=$(IMAGE),format=raw
 
 clean:
-	rm -rf $(BUILD_DIR)
+	@rm -rf build

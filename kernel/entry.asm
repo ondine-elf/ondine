@@ -1,11 +1,8 @@
-BITS 16
+BITS 32
 
 SECTION .text
     GLOBAL _start
-    EXTERN enable_A20
     EXTERN kernel_main
 
 _start:
-    call kernel_main
-
-
+    jmp $

@@ -6,7 +6,7 @@ SECTIONS {
     . = 0x100000;
 
     .text : {
-        build/kernel/entry.o(.text)
+        build/entry.o(.text)
         *(.text)
     }
 
